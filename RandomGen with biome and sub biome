@@ -1,0 +1,172 @@
+#include "VoxelTerrain.h"
+#include "Voxel.h"
+#include "PerlinNoise.h"
+#include "FastNoise.h"
+
+// Define the biome data structure
+struct Biome
+{
+    float MinHeight; // The minimum height at which this biome appears
+    float MaxHeight; // The maximum height at which this biome appears
+    float MinTemperature; // The minimum temperature at which this biome appears
+    float MaxTemperature; // The maximum temperature at which this biome appears
+    float MinMoisture; // The minimum moisture at which this biome appears
+    float MaxMoisture; // The maximum moisture at which this biome appears
+    uint8_t VoxelType; // The type of voxel that represents this biome
+};
+
+// Define the sub-biome data structure
+struct SubBiome
+{
+    float MinHeight; // The minimum height at which this sub-biome appears
+    float MaxHeight; // The maximum height at which this sub-biome appears
+    float MinTemperature; // The minimum temperature at which this sub-biome appears
+    float MaxTemperature; // The maximum temperature at which this sub-biome appears
+    float MinMoisture; // The minimum moisture at which this sub-biome appears
+    float MaxMoisture; // The maximum moisture at which this sub-biome appears
+    uint8_t VoxelType; // The type of voxel that represents this sub-biome
+};
+
+// Define the river data structure
+struct River
+{
+    FVector StartPoint; // The starting point of the river
+    FVector EndPoint; // The end point of the river
+    float Width; // The width of the river
+};
+
+// Define the terrain generator class
+class TerrainGenerator
+{
+public:
+    TerrainGenerator(int32_t Seed)
+    {
+        // Set up the noise generators
+        HeightGenerator.SetNoiseType(FastNoise::Simplex);
+        HeightGenerator.SetFractalOctaves(4);
+        HeightGenerator.SetFrequency(0.01f);
+        
+        TemperatureGenerator.SetNoiseType(FastNoise::Simplex);
+        TemperatureGenerator.SetFractalOctaves(4);
+        TemperatureGenerator.SetFrequency(0.01f);
+        
+        MoistureGenerator.SetNoiseType(FastNoise::Simplex);
+        MoistureGenerator.SetFractalOctaves(4);
+        MoistureGenerator.SetFrequency(0.01f);
+        
+        // Set up the biomes
+        Biomes =
+        {
+            { 0.0f, 1.0f, -1.0f, 1.0f, 0.0f, 1.0f, 0 }, // Water
+            { 0.0f, 1.0f, -1.0f, 1.0f, 0.0f, 0.3f, 1 }, // Desert
+            { 0.0f, 1.0f, 0.2f, 1.0f, 0.3f, 1.0f, 2 }, // Forest
+            { 0.0f, 1.0f, 0.2f, 1.0f, 0.0f, 0.3f, 3 } // Tundra
+        };
+        
+        // Set up the sub-biomes
+        SubBiomes =
+        {
+            { 0.6f, 1.0f, -1.0f, 1.0f, 0.0f, 0.3f, 4 }, //
+        };
+        
+        // Set up the rivers
+        Rivers =
+        {
+            { FVector(-5000.0f, 0.0f, -5000.0f), FVector(5000.0f, 0.0f, 5000.0f), 30.0f },
+            { FVector(-5000.0f, 0.0f, 5000.0f), FVector(5000.0f, 0.0f, -5000.0f), 30.0f }
+        };
+        
+        // Set the seed for the noise generators
+        HeightGenerator.SetSeed(Seed);
+        TemperatureGenerator.SetSeed(Seed + 1);
+        MoistureGenerator.SetSeed(Seed + 2);
+    }
+    
+    // Generate the terrain at a given location
+    TVoxel<uint8_t> GenerateTerrainAt(int32_t X, int32_t Y, int32_t Z)
+    {
+        // Calculate the height, temperature, and moisture at the given location
+        float Height = HeightGenerator.GetNoise(X, Y, Z);
+        float Temperature = TemperatureGenerator.GetNoise(X, Y, Z);
+        float Moisture = MoistureGenerator.GetNoise(X, Y, Z);
+        
+        // Determine the biome at the given location
+        const Biome* CurrentBiome = nullptr;
+        for (const Biome& Biome : Biomes)
+        {
+            if (Height >= Biome.MinHeight && Height <= Biome.MaxHeight &&
+                Temperature >= Biome.MinTemperature && Temperature <= Biome.MaxTemperature &&
+                Moisture >= Biome.MinMoisture && Moisture <= Biome.MaxMoisture)
+            {
+                CurrentBiome = &Biome;
+                break;
+            }
+        }
+        
+        // If no biome was found, default to the water biome
+        if (!CurrentBiome)
+        {
+            CurrentBiome = &Biomes[0];
+        }
+        
+        // Determine the sub-biome at the given location
+        const SubBiome* CurrentSubBiome = nullptr;
+        for (const SubBiome& SubBiome : SubBiomes)
+        {
+            if (Height >= SubBiome.MinHeight && Height <= SubBiome.MaxHeight &&
+                Temperature >= SubBiome.MinTemperature && Temperature <= SubBiome.MaxTemperature &&
+                Moisture >= SubBiome.MinMoisture && Moisture <= SubBiome.MaxMoisture)
+            {
+                CurrentSubBiome = &SubBiome;
+                break;
+            }
+        }
+        
+        // If no sub-biome was found, default to the current biome
+        if (!CurrentSubBiome)
+        {
+            CurrentSubBiome = CurrentBiome;
+        }
+        
+        // Determine the voxel type for the given location
+        uint8_t VoxelType = CurrentSubBiome->VoxelType;
+        
+        // Determine if the location is inside a river
+        for (const River& River : Rivers)
+        {
+            FVector Point(X, 0.0f, Z);
+            FVector LineStart = River.StartPoint;
+            FVector LineEnd = River.EndPoint;
+            FVector LineDirection = LineEnd - LineStart;
+            FVector PointToLineStart = Point - LineStart;
+            float T = FVector::DotProduct(PointToLineStart, LineDirection) / LineDirection.SizeSquared();
+            FVector ClosestPoint = LineStart + LineDirection * FMath::Clamp(T, 0.0f, 1.0f);
+            float Distance = FVector::Dist(Point, ClosestPoint);
+            if (Distance <= River.Width
+            {
+                // The location is inside the river
+                VoxelType = River.VoxelType;
+                break;
+            }
+        }
+        
+        // Create the voxel and return it
+        TVoxel<uint8_t> Voxel;
+        Voxel.Value = VoxelType;
+        Voxel.Material = CurrentSubBiome->Material;
+        return Voxel;
+    }
+};
+
+// Example usage:
+class AVoxelWorld : public AVoxelWorldGenerator
+{
+public:
+    AVoxelWorld()
+    {
+        WorldGenerator = MakeShared<ProceduralTerrainGenerator>(Seed);
+    }
+};
+
+// Set this actor as the world generator
+World->SetWorldGenerator(MakeShared<AVoxelWorld>());
