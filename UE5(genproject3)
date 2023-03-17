@@ -1,0 +1,121 @@
+// This code assumes that you have already set up a UE5 project and added a new C++ class called "AVoxelTerrainActor" that extends the "AActor" class.
+
+#include "AVoxelTerrainActor.h"
+#include "MarchingCubesTable.h"
+
+#include "Engine/World.h"
+#include "Engine/StaticMesh.h"
+#include "Components/StaticMeshComponent.h"
+#include "Kismet/KismetMathLibrary.h"
+
+// Constants for terrain generation
+const int32 CHUNK_SIZE = 32;
+const int32 CHUNK_HEIGHT = 256;
+const int32 SEA_LEVEL = 64;
+const float BIOME_FREQUENCY = 0.0025f;
+const float SUBBIOME_FREQUENCY = 0.01f;
+const float RIVER_FREQUENCY = 0.002f;
+const float RIVER_DEPTH = 0.5f;
+const float RIVER_WIDTH = 0.25f;
+
+// A struct to represent a voxel in the world
+struct FVoxel
+{
+    int32 Value;
+    bool bIsSubmerged;
+    bool bIsRiver;
+};
+
+// A struct to represent a chunk of the world
+struct FVoxelChunk
+{
+    FVoxel Voxels[CHUNK_SIZE][CHUNK_SIZE][CHUNK_HEIGHT];
+    bool bIsDirty;
+    UStaticMeshComponent* MeshComponent;
+};
+
+// The main terrain actor class
+class AVoxelTerrainActor : public AActor
+{
+    GENERATED_BODY()
+
+public:
+
+    AVoxelTerrainActor()
+    {
+        // Set this actor to tick every frame
+        PrimaryActorTick.bCanEverTick = true;
+
+        // Initialize the world origin
+        WorldOrigin = FVector::ZeroVector;
+    }
+
+    // The dimensions of the world in chunks
+    int32 WorldSize = 16;
+
+    // The dimensions of each chunk in voxels
+    int32 ChunkSize = CHUNK_SIZE;
+
+    // The height of the sea level
+    int32 SeaLevel = SEA_LEVEL;
+
+    // The frequency of the biome noise
+    float BiomeFrequency = BIOME_FREQUENCY;
+
+    // The frequency of the sub-biome noise
+    float SubBiomeFrequency = SUBBIOME_FREQUENCY;
+
+    // The frequency of the river noise
+    float RiverFrequency = RIVER_FREQUENCY;
+
+    // The depth of the rivers
+    float RiverDepth = RIVER_DEPTH;
+
+    // The width of the rivers
+    float RiverWidth = RIVER_WIDTH;
+
+    // The material to use for the terrain mesh
+    UMaterialInterface* TerrainMaterial;
+
+    // The mesh to use for the terrain mesh
+    UStaticMesh* TerrainMesh;
+
+protected:
+
+    // Called when the game starts or when spawned
+    virtual void BeginPlay() override
+    {
+        Super::BeginPlay();
+
+        // Initialize the terrain
+        InitTerrain();
+    }
+
+    // Called every frame
+    virtual void Tick(float DeltaTime) override
+    {
+        Super::Tick(DeltaTime);
+
+        // Update the terrain mesh
+        UpdateTerrain();
+    }
+
+private:
+
+    // The world origin
+    FVector WorldOrigin;
+
+    // The chunks in the world
+    TArray<FVoxelChunk> Chunks;
+
+    // The noise module for generating the terrain
+    FSimplexNoiseModule NoiseModule;
+
+    // The noise module for generating the biomes
+    FSimplexNoiseModule BiomeNoiseModule;
+
+    // The noise module for generating the sub-biomes
+    FSimplexNoiseModule SubBiomeNoiseModule;
+
+    // The noise module for generating the rivers
+    FSimplexNoiseModule River
