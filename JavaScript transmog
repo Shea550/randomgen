@@ -1,0 +1,135 @@
+// Initialize variables
+let seed = 0;
+let octaves = 6;
+let persistence = 0.5;
+let lacunarity = 2.0;
+let scale = 50.0;
+let heightScale = 10.0;
+let offsetX = 0.0;
+let offsetY = 0.0;
+let offsetZ = 0.0;
+
+// Initialize 3D noise generator
+const noise = new SimplexNoise(seed);
+
+// Function to get a 3D value from Perlin noise
+function noise3D(x, y, z) {
+  return noise.noise3D(x, y, z);
+}
+
+// Function to get the noise value for a given position
+function getNoiseValue(x, y, z) {
+  let amplitude = 1.0;
+  let frequency = 1.0;
+  let noiseValue = 0.0;
+
+  // Generate multiple octaves of noise
+  for (let i = 0; i < octaves; i++) {
+    noiseValue += amplitude * noise3D(x * frequency, y * frequency, z * frequency);
+    amplitude *= persistence;
+    frequency *= lacunarity;
+  }
+
+  return noiseValue;
+}
+
+// Function to generate the terrain data for a given chunk
+function generateChunkTerrainData(chunkX, chunkY, chunkZ) {
+  let terrainData = [];
+
+  // Iterate over each voxel in the chunk
+  for (let z = 0; z < 16; z++) {
+    for (let y = 0; y < 16; y++) {
+      for (let x = 0; x < 16; x++) {
+        // Calculate the position of the voxel in the world
+        let worldX = (chunkX * 16 + x + offsetX) / scale;
+        let worldY = (chunkY * 16 + y + offsetY) / scale;
+        let worldZ = (chunkZ * 16 + z + offsetZ) / scale;
+
+        // Calculate the noise value for the voxel's position
+        let noiseValue = getNoiseValue(worldX, worldY, worldZ);
+
+        // Determine the type of block based on the noise value
+        let blockType = "stone";
+        if (worldY * heightScale < noiseValue) {
+          blockType = "grass";
+        }
+
+        // Add the block to the terrain data
+        terrainData.push({ x, y, z, type: blockType });
+      }
+    }
+  }
+
+  return terrainData;
+}
+// Generate a random number between min and max, inclusive
+function randomInt(min, max) {
+  return Math.floor(Math.random() * (max - min + 1)) + min;
+}
+
+// Generate a 3D array of noise values using Perlin noise
+function generateNoise(width, height, depth, scale, octaves, persistence, lacunarity) {
+  let noise = new Array(width);
+  for (let i = 0; i < width; i++) {
+    noise[i] = new Array(height);
+    for (let j = 0; j < height; j++) {
+      noise[i][j] = new Array(depth);
+      for (let k = 0; k < depth; k++) {
+        let amplitude = 1;
+        let frequency = 1;
+        let noiseValue = 0;
+        for (let o = 0; o < octaves; o++) {
+          let sampleX = i / scale * frequency;
+          let sampleY = j / scale * frequency;
+          let sampleZ = k / scale * frequency;
+          let perlinValue = noise3d(sampleX, sampleY, sampleZ) * 0.5 + 0.5;
+          noiseValue += perlinValue * amplitude;
+          amplitude *= persistence;
+          frequency *= lacunarity;
+        }
+        noise[i][j][k] = noiseValue;
+      }
+    }
+  }
+  return noise;
+}
+
+// Generate a 3D array of terrain values using Perlin noise
+function generateTerrain(width, height, depth, scale, octaves, persistence, lacunarity) {
+  let noise = generateNoise(width, height, depth, scale, octaves, persistence, lacunarity);
+  let terrain = new Array(width);
+  for (let i = 0; i < width; i++) {
+    terrain[i] = new Array(height);
+    for (let j = 0; j < height; j++) {
+      terrain[i][j] = new Array(depth);
+      for (let k = 0; k < depth; k++) {
+        let terrainValue = noise[i][j][k];
+        if (terrainValue < 0.2) {
+          terrain[i][j][k] = 0; // water
+        } else if (terrainValue < 0.5) {
+          terrain[i][j][k] = 1; // sand
+        } else if (terrainValue < 0.7) {
+          terrain[i][j][k] = 2; // grass
+        } else {
+          terrain[i][j][k] = 3; // rock
+        }
+      }
+    }
+  }
+  return terrain;
+}
+
+// Generate a 3D array of biomes using Perlin noise
+function generateBiomes(width, height, depth, scale, octaves, persistence, lacunarity) {
+  let noise = generateNoise(width, height, depth, scale, octaves, persistence, lacunarity);
+  let biomes = new Array(width);
+  for (let i = 0; i < width; i++) {
+    biomes[i] = new Array(height);
+    for (let j = 0; j < height; j++) {
+      biomes[i][j] = new Array(depth);
+      for (let k = 0; k < depth; k++) {
+        let biomeValue = noise[i][j][k];
+        if (biomeValue < 0.3) {
+          biomes[i][j][k] = 0; // forest
+        } else
