@@ -1,0 +1,78 @@
+#include "MyTerrainGenerator.h"
+#include "PerlinNoise.h"
+#include "Components/InstancedStaticMeshComponent.h"
+#include "Kismet/GameplayStatics.h"
+
+AMyTerrainGenerator::AMyTerrainGenerator()
+{
+    PrimaryActorTick.bCanEverTick = false;
+}
+
+void AMyTerrainGenerator::BeginPlay()
+{
+    Super::BeginPlay();
+
+    // Set the initial player location
+    AActor* Player = UGameplayStatics::GetPlayerCharacter(GetWorld(), 0);
+    FVector PlayerLocation = Player->GetActorLocation();
+    LastPlayerLocation = FVector2D(PlayerLocation.X, PlayerLocation.Y);
+
+    // Generate the initial terrain
+    GenerateTerrain();
+}
+
+void AMyTerrainGenerator::GenerateTerrain()
+{
+    // Create a static mesh to represent a single terrain block
+    UStaticMesh* TerrainMesh = LoadObject<UStaticMesh>(nullptr, TEXT("/Game/MyContent/StaticMeshes/TerrainBlock"));
+
+    // Get the instanced static mesh component from the terrain actor
+    UInstancedStaticMeshComponent* TerrainMeshComponent = FindComponentByClass<UInstancedStaticMeshComponent>();
+
+    // Set the seed for the Perlin noise generator
+    PerlinNoise NoiseGenerator(Seed);
+
+    // Generate the terrain
+    for (int x = -RenderDistance; x <= RenderDistance; x++)
+    {
+        for (int y = -RenderDistance; y <= RenderDistance; y++)
+        {
+            for (int z = -RenderDistance; z <= RenderDistance; z++)
+            {
+                // Calculate the terrain block position
+                FVector BlockPosition = FVector(x * BlockSize, y * BlockSize, z * BlockSize);
+
+                // Calculate the Perlin noise value at the block position
+                float NoiseValue = NoiseGenerator.GetNoise(BlockPosition.X, BlockPosition.Y, BlockPosition.Z);
+
+                // If the noise value is greater than the threshold, spawn a terrain block
+                if (NoiseValue > Threshold)
+                {
+                    // Add the terrain block to the instanced static mesh component
+                    TerrainMeshComponent->AddInstanceWorldSpace(FTransform(BlockRotation, BlockPosition, BlockScale));
+                }
+            }
+        }
+    }
+}
+
+void AMyTerrainGenerator::Tick(float DeltaTime)
+{
+    Super::Tick(DeltaTime);
+
+    // Get the player location
+    AActor* Player = UGameplayStatics::GetPlayerCharacter(GetWorld(), 0);
+    FVector PlayerLocation = Player->GetActorLocation();
+
+    // Calculate the player movement delta
+    FVector2D PlayerMovement = FVector2D(PlayerLocation.X, PlayerLocation.Y) - LastPlayerLocation;
+
+    // If the player has moved more than the chunk size, generate new terrain
+    if (PlayerMovement.Size() > ChunkSize)
+    {
+        GenerateTerrain();
+
+        // Update the last player location
+        LastPlayerLocation = FVector2D(PlayerLocation.X, PlayerLocation.Y);
+    }
+}
